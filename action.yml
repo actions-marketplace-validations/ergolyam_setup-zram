@@ -1,0 +1,59 @@
+name: Set up zram
+description: Configure zram swap on Ubuntu runners
+
+inputs:
+  size:
+    description: Zram device size
+    required: true
+  algorithm:
+    description: Compression algorithm
+    required: false
+    default: zstd
+  priority:
+    description: Swap priority
+    required: false
+    default: '100'
+
+runs:
+  using: composite
+  steps:
+    - name: Configure zram
+      shell: bash
+      env:
+        ZRAM_ALGORITHM: ${{ inputs.algorithm }}
+        ZRAM_SIZE: ${{ inputs.size }}
+        ZRAM_PRIORITY: ${{ inputs.priority }}
+      run: |
+        set -euo pipefail
+
+        if [[ "$(uname -s)" != "Linux" ]]; then
+          echo "::error::Linux is required"
+          exit 1
+        fi
+
+        [[ "$ZRAM_ALGORITHM" =~ ^[a-z0-9_-]+$ ]] || exit 1
+        [[ "$ZRAM_SIZE" =~ ^[1-9][0-9]*[KMGTP]?$ ]] || exit 1
+
+        if ! sudo modprobe zram; then
+          kernel="$(uname -r)"
+
+          sudo apt-get update
+          sudo apt-get install -y \
+            "linux-modules-extra-${kernel}"
+
+          sudo modprobe zram
+        fi
+
+        dev=$(sudo zramctl --find \
+          --algorithm "$ZRAM_ALGORITHM" \
+          --size "$ZRAM_SIZE")
+
+        echo "Created ${dev}"
+
+        sudo mkswap "$dev"
+        sudo swapon \
+          --priority "$ZRAM_PRIORITY" "$dev"
+
+        echo "Final state:"
+        swapon --show
+        zramctl
