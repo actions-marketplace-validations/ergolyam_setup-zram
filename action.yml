@@ -1,6 +1,10 @@
 name: Set up zram
 description: Configure zram swap on Ubuntu runners
 
+branding:
+  icon: hard-drive
+  color: blue
+
 inputs:
   size:
     description: Zram device size
